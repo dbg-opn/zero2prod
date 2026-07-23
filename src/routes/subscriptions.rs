@@ -4,7 +4,7 @@ use sqlx::PgPool;
 use uuid::Uuid;
 // An extension trait to provide the `graphemes` method
 // on `String` and `&str`
-use crate::domain::{NewSubscriber, SubscriberName};
+use crate::domain::{NewSubscriber, SubscriberEmail, SubscriberName};
 
 #[derive(serde::Deserialize)]
 pub struct FormData {
@@ -30,10 +30,14 @@ pub async fn subscribe(
         // Return early if the name is invalid, with a 400
         Err(_) => return HttpResponse::BadRequest().finish(),
     };
+    let email = match SubscriberEmail::parse(form.0.email) {
+        Ok(email) => email,
+        Err(_) => return HttpResponse::BadRequest().finish(),
+    };
     // `web::Form` is a wrapper around `FormData`
     // `form.0` gives us access to the underlying `FormData`
     let new_subscriber = NewSubscriber {
-        email: form.0.email,
+        email: email,
         name: name,
     };
     match insert_subscriber(&db_pool, &new_subscriber).await {
@@ -59,7 +63,7 @@ pub async fn insert_subscriber(
         VALUES ($1, $2, $3, $4)
         "#,
         Uuid::new_v4(),
-        new_subscriber.email,
+        new_subscriber.email.as_ref(),
         new_subscriber.name.as_ref(),
         Utc::now()
     )
